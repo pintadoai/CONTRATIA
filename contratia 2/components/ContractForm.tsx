@@ -22,9 +22,9 @@ interface ContractFormProps {
     setApiError: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
-const MAKE_WEBHOOK_URL_MUSIC = 'https://hook.us2.make.com/c4ezgi6bqtn6qq3ktq9x2zyltn7s2r8t';
-const MAKE_WEBHOOK_URL_BOOTH = 'https://hook.us2.make.com/qh9or1ejaatlb9flpt5h23mxhdde57uf';
-const MAKE_WEBHOOK_URL_DJ = 'https://hook.us2.make.com/hnkpa5d1tcm4fr6kfnrl2gvhghuen21n';
+// URLs de webhook movidas al servidor (Netlify Functions) por seguridad
+// Ver: netlify/functions/generate-contract.js
+const SECURE_API_ENDPOINT = '/api/generate-contract';
 
 
 const calculateMontajeTime = (serviceTime: string): string => {
@@ -406,10 +406,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         try {
             const ano_contrato_current = '2025';
             let finalPayload;
-            let webhookUrl;
 
             if (contractType === 'music') {
-                webhookUrl = MAKE_WEBHOOK_URL_MUSIC;
                 finalPayload = {
                     contract_type: contractType,
                     nombre_cliente: data.nombreCliente,
@@ -434,7 +432,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                     cantidad_estacionamientos: data.parkingSpaces,
                 };
             } else if (contractType === 'booth') {
-                webhookUrl = MAKE_WEBHOOK_URL_BOOTH;
                 finalPayload = {
                     ano_contrato: ano_contrato_current,
                     numero_contrato: data.numeroContrato,
@@ -468,7 +465,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                     idioma: data.language,
                 };
             } else { // DJ contract
-                webhookUrl = MAKE_WEBHOOK_URL_DJ;
                 const today = new Date();
                 const formattedDate = today.toLocaleDateString(data.language === 'es' ? 'es-PR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
                 const eventDate = translations[data.language].doc.formatDate(data.diaEvento, data.mesEvento, data.anoEvento);
@@ -520,10 +516,14 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                 };
             }
 
-            const response = await fetch(webhookUrl, {
+            // Llamar al endpoint seguro (Netlify Function) en lugar de directamente a Make.com
+            const response = await fetch(SECURE_API_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(finalPayload),
+                body: JSON.stringify({
+                    contractType: contractType,  // 'music', 'booth', o 'dj'
+                    payload: finalPayload        // Los datos del contrato
+                }),
             });
             
             const responseText = await response.text();
