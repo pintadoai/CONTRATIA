@@ -1,0 +1,8 @@
+/* index.css - Estilos base para CONTRATIA */
+
+/* Reset básico */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Estilos del body ya están en index.html via Tailwind */
