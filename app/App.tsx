@@ -1,39 +1,22 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ContractData, GeneratedLinks, ContractType } from './types';
 import ContractForm from './components/ContractForm';
+import ContractHistory from './components/ContractHistory';
+import ContractTypeSelector from './components/ContractTypeSelector';
 import useAutoSave from './hooks/useAutoSave';
+import useContractHistory from './hooks/useContractHistory';
 import { Logo } from './components/icons';
+import { CONFIG, PRICING, MONTH_NAMES } from './utils/constants';
 
-const initialMusicData: ContractData = {
+// Base contract data shared by all contract types
+const createBaseContractData = (): Partial<ContractData> => ({
     numeroContrato: '001',
     nombreCliente: '',
     emailCliente: '',
     telefonoCliente: '',
     diaEvento: '',
     mesEvento: '',
-    anoEvento: '2025',
-    descripcionServicio: '',
-    horaServicio: '',
-    costoTotal: '',
-    balanceRestante: '0.00',
-    tipoActividad: '',
-    direccionEvento: '',
-    notasAdicionales: '',
-    notasFactura: '',
-    aplicaDeposito: true,
-    soundOption: 'pendiente',
-    parkingSpaces: '5',
-    language: 'es',
-};
-
-const initialBoothData: ContractData = {
-    numeroContrato: '001',
-    nombreCliente: '',
-    emailCliente: '',
-    telefonoCliente: '',
-    diaEvento: '',
-    mesEvento: '',
-    anoEvento: '2025',
+    anoEvento: CONFIG.CURRENT_YEAR,
     descripcionServicio: '',
     horaServicio: '',
     costoTotal: '0.00',
@@ -44,106 +27,66 @@ const initialBoothData: ContractData = {
     notasFactura: '',
     aplicaDeposito: true,
     language: 'es',
-    soundOption: 'pendiente', // Not used, but part of type
+    soundOption: 'pendiente',
     parkingSpaces: '2',
-    // Booth specific from PRD
-    servicioPhotoBooth: false,
-    servicioVideoBooth360: false,
-    bocinaOpcion: 'no_contratar',
-    earlySetupOpcion: 'no_contratar',
-    brandingOpcion: 'no_contratar',
-    ubicacionEvento: '',
-    serviceHours: '2 horas',
-};
+});
 
-const initialDjData: ContractData = {
-    numeroContrato: '001',
-    nombreCliente: '',
-    emailCliente: '',
-    telefonoCliente: '',
-    diaEvento: '',
-    mesEvento: '',
-    anoEvento: '2025',
-    descripcionServicio: '', // Not used for DJ, but in type
-    horaServicio: '', // Represents hora_inicio
-    costoTotal: '0.00', // Represents honorarios_total
-    balanceRestante: '0.00', // Not used for DJ, but in type
-    tipoActividad: '', // Represents tipo_evento
-    direccionEvento: '', // Represents venue_direccion
-    notasAdicionales: '', // Represents notas_contrato
-    notasFactura: '',
-    aplicaDeposito: true, // DJ uses 50/50 split, now toggleable
-    language: 'es',
-    soundOption: 'pendiente', // Not used for DJ, but in type
-    parkingSpaces: '2', // Represents cantidad_estacionamientos
-    // DJ specific fields
-    fecha_evento_str: '',
-    hora_inicio: '',
-    hora_fin: '',
-    duracion_total: '0 horas',
-    numero_invitados: '',
-    venue_nombre: '',
-    piso_evento: '',
-    contacto_venue: '',
-    telefono_venue: '',
-    restricciones_horario: '',
-    montaje: '',
-    electrico: '',
-    es_exterior: 'No',
-    tipo_superficie: '',
-    proteccion_carpa_cliente: false,
-    proteccion_estructura_permanente: false,
-    proteccion_sin_proteccion: false,
-    proteccion_area_nivelada: false,
-    proteccion_acceso_vehiculos: false,
-    nombre_paquete: '',
-    color_setup: '',
-    deposito_50: '0.00',
-    balance_50: '0.00',
-};
+// Factory function to create initial data for each contract type
+const getInitialData = (type: ContractType): ContractData => {
+    const base = createBaseContractData();
 
-const getInitialData = (type: ContractType) => {
     switch (type) {
-        case 'music': return initialMusicData;
-        case 'booth': return initialBoothData;
-        case 'dj': return initialDjData;
-        default: return initialMusicData;
+        case 'music':
+            return {
+                ...base,
+                costoTotal: '',
+                parkingSpaces: '5',
+            } as ContractData;
+
+        case 'booth':
+            return {
+                ...base,
+                servicioPhotoBooth: false,
+                servicioVideoBooth360: false,
+                bocinaOpcion: 'no_contratar',
+                earlySetupOpcion: 'no_contratar',
+                brandingOpcion: 'no_contratar',
+                ubicacionEvento: '',
+                serviceHours: '2 horas',
+            } as ContractData;
+
+        case 'dj':
+            return {
+                ...base,
+                fecha_evento_str: '',
+                hora_inicio: '',
+                hora_fin: '',
+                duracion_total: '0 horas',
+                numero_invitados: '',
+                venue_nombre: '',
+                piso_evento: '',
+                contacto_venue: '',
+                telefono_venue: '',
+                restricciones_horario: '',
+                montaje: '',
+                electrico: '',
+                es_exterior: 'No',
+                tipo_superficie: '',
+                proteccion_carpa_cliente: false,
+                proteccion_estructura_permanente: false,
+                proteccion_sin_proteccion: false,
+                proteccion_area_nivelada: false,
+                proteccion_acceso_vehiculos: false,
+                nombre_paquete: '',
+                color_setup: '',
+                deposito_50: '0.00',
+                balance_50: '0.00',
+            } as ContractData;
+
+        default:
+            return base as ContractData;
     }
 };
-
-const ContractTypeSelector: React.FC<{
-    selectedType: ContractType;
-    onChange: (type: ContractType) => void;
-}> = ({ selectedType, onChange }) => {
-    // New "Pill" design for selector
-    const baseStyle = "flex-1 text-sm md:text-base font-bold py-3 px-4 rounded-full transition-all duration-300 transform";
-    const activeStyle = "bg-black text-white shadow-lg scale-105 ring-2 ring-offset-2 ring-gray-200";
-    const inactiveStyle = "text-gray-500 hover:bg-white hover:text-black";
-
-    return (
-        <div className="flex flex-col md:flex-row justify-between items-center bg-gray-100/80 backdrop-blur-sm p-1.5 rounded-[2rem] mx-auto max-w-4xl shadow-inner mb-8 border border-gray-200 gap-1 md:gap-0">
-            <button
-                onClick={() => onChange('music')}
-                className={`${baseStyle} ${selectedType === 'music' ? activeStyle : inactiveStyle}`}
-            >
-                🎵 Música
-            </button>
-            <button
-                onClick={() => onChange('booth')}
-                className={`${baseStyle} ${selectedType === 'booth' ? activeStyle : inactiveStyle}`}
-            >
-                📸 Photo Booth
-            </button>
-             <button
-                onClick={() => onChange('dj')}
-                className={`${baseStyle} ${selectedType === 'dj' ? activeStyle : inactiveStyle}`}
-            >
-                🎧 DJ Set
-            </button>
-        </div>
-    );
-};
-
 
 const App: React.FC = () => {
     const [contractType, setContractType] = useState<ContractType>('music');
@@ -152,7 +95,8 @@ const App: React.FC = () => {
     const [generatedLinks, setGeneratedLinks] = useState<GeneratedLinks | null>(null);
     const [apiError, setApiError] = useState<string | null>(null);
 
-    const { clearDraft } = useAutoSave(contractData, setContractData, `dshow-contract-draft-${contractType}`);
+    const { clearDraft, saveStatus } = useAutoSave(contractData, setContractData, `dshow-contract-draft-${contractType}`);
+    const { history, addToHistory, removeFromHistory, clearHistory } = useContractHistory();
 
      // Auto-generate Service Description for Booths
     useEffect(() => {
@@ -198,7 +142,7 @@ const App: React.FC = () => {
         let totalForBalanceCalc = parseFloat(contractData.costoTotal) || 0;
 
         if (contractType === 'music' && contractData.soundOption === 'upgrade') {
-            totalForBalanceCalc += 150;
+            totalForBalanceCalc += PRICING.SOUND_UPGRADE;
         }
         
         if (totalForBalanceCalc <= 0) {
@@ -208,7 +152,7 @@ const App: React.FC = () => {
             return;
         }
 
-        const deposit = contractData.aplicaDeposito ? 125 : 0;
+        const deposit = contractData.aplicaDeposito ? PRICING.DEPOSIT_MUSIC_BOOTH : 0;
         const balance = totalForBalanceCalc - deposit;
         
         const newBalance = Math.max(0, balance).toFixed(2);
@@ -261,10 +205,11 @@ const App: React.FC = () => {
 
         const newDuration = calculateDuration(contractData.hora_inicio, contractData.hora_fin);
         
-        // 2. Calculate financials
+        // 2. Calculate financials (DJ uses 50% deposit)
         const total = parseFloat(contractData.costoTotal) || 0;
-        const deposit = contractData.aplicaDeposito ? (total * 0.5).toFixed(2) : '0.00';
-        const balance = contractData.aplicaDeposito ? (total * 0.5).toFixed(2) : total.toFixed(2);
+        const depositPercent = PRICING.DEPOSIT_DJ_PERCENT;
+        const deposit = contractData.aplicaDeposito ? (total * depositPercent).toFixed(2) : '0.00';
+        const balance = contractData.aplicaDeposito ? (total * (1 - depositPercent)).toFixed(2) : total.toFixed(2);
 
 
         if (contractData.duracion_total !== newDuration || contractData.deposito_50 !== deposit || contractData.balance_50 !== balance) {
@@ -329,18 +274,17 @@ const App: React.FC = () => {
                     const year = date.getUTCFullYear().toString();
                     const day = date.getUTCDate().toString();
                     const monthIndex = date.getUTCMonth();
-                    const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-                    setContractData(prev => ({ 
-                        ...prev, 
+                    setContractData(prev => ({
+                        ...prev,
                         [name]: value,
                         diaEvento: day,
-                        mesEvento: monthNames[monthIndex],
+                        mesEvento: MONTH_NAMES[monthIndex],
                         anoEvento: year,
                     }));
                 } else {
                     setContractData(prev => ({
                         ...prev,
-                        [name]: '', diaEvento: '', mesEvento: '', anoEvento: '2025'
+                        [name]: '', diaEvento: '', mesEvento: '', anoEvento: CONFIG.CURRENT_YEAR
                     }));
                 }
             } else {
@@ -381,6 +325,34 @@ const App: React.FC = () => {
                             <Logo className="h-8 w-auto" />
                         </div>
                         <div className="flex items-center space-x-4">
+                            {/* Auto-save status indicator */}
+                            <div className="flex items-center gap-2 text-xs">
+                                {saveStatus === 'saving' && (
+                                    <span className="flex items-center gap-1.5 text-gray-400 animate-pulse">
+                                        <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                        </svg>
+                                        Guardando...
+                                    </span>
+                                )}
+                                {saveStatus === 'saved' && (
+                                    <span className="flex items-center gap-1 text-green-600 font-medium">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Guardado
+                                    </span>
+                                )}
+                                {saveStatus === 'error' && (
+                                    <span className="flex items-center gap-1 text-red-500 font-medium">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Error
+                                    </span>
+                                )}
+                            </div>
                             <span className="text-xl font-black text-gray-900 font-montserrat tracking-tight">
                                 CONTRATIA
                             </span>
@@ -401,7 +373,16 @@ const App: React.FC = () => {
                 </div>
 
                  <ContractTypeSelector selectedType={contractType} onChange={handleContractTypeChange} />
-                
+
+                {/* Contract History Panel */}
+                <div className="mb-6">
+                    <ContractHistory
+                        history={history}
+                        onRemove={removeFromHistory}
+                        onClear={clearHistory}
+                    />
+                </div>
+
                 <ContractForm
                     contractType={contractType}
                     data={contractData}
@@ -414,6 +395,7 @@ const App: React.FC = () => {
                     setGeneratedLinks={setGeneratedLinks}
                     apiError={apiError}
                     setApiError={setApiError}
+                    onContractGenerated={addToHistory}
                 />
             </main>
             
@@ -426,7 +408,7 @@ const App: React.FC = () => {
                 </p>
                 <div className="pt-2">
                     <span className="inline-block bg-gray-200 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-mono">
-                        v2.0
+                        v2.2.0
                     </span>
                 </div>
             </footer>

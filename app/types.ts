@@ -67,9 +67,4 @@ export interface ContractData {
     color_setup?: 'negro' | 'blanco' | '';
     deposito_50?: string;
     balance_50?: string;
-
-    // --- OLD Booth specific fields to be removed from initial data ---
-    boothType?: string;
-    packageInclusions?: string;
-    venueRequirements?: string;
 }

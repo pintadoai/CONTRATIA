@@ -7,6 +7,26 @@ import Button from './ui/Button';
 import { TrashIcon } from './icons';
 import { MakeIntegrationButton } from './MakeIntegration';
 import { translations, isValidPhone, normalizePhone, isValidEmail, isValidDate, isValidTimeSlot } from '../utils/translations';
+import { CONFIG, PRICING, MONTH_OPTIONS, MONTH_MAP } from '../utils/constants';
+
+// Modular form components
+import {
+    Section,
+    RadioGroup,
+    RadioOption,
+    LanguageSelector,
+    TimeSelector,
+    DateInput,
+    AddonService,
+} from './forms';
+
+interface ContractHistoryInput {
+    contractNumber: string;
+    contractType: ContractType;
+    clientName: string;
+    eventDate: string;
+    links: GeneratedLinks;
+}
 
 interface ContractFormProps {
     contractType: ContractType;
@@ -20,6 +40,7 @@ interface ContractFormProps {
     setGeneratedLinks: React.Dispatch<React.SetStateAction<GeneratedLinks | null>>;
     apiError: string | null;
     setApiError: React.Dispatch<React.SetStateAction<string | null>>;
+    onContractGenerated?: (item: ContractHistoryInput) => void;
 }
 
 // URLs de webhook movidas al servidor (Netlify Functions) por seguridad
@@ -27,10 +48,11 @@ interface ContractFormProps {
 const SECURE_API_ENDPOINT = '/api/generate-contract';
 
 
+// Helper function to calculate setup time (2 hours before service)
 const calculateMontajeTime = (serviceTime: string): string => {
     if (!serviceTime) return '---';
     const match = serviceTime.match(/(\d+):(\d+)\s(AM|PM)/);
-    if (!match) return 'Hora inválida';
+    if (!match) return 'Hora invalida';
 
     let [_, hourStr, minuteStr, period] = match;
     let hour = parseInt(hourStr, 10);
@@ -46,232 +68,15 @@ const calculateMontajeTime = (serviceTime: string): string => {
     let newHour = eventDate.getHours();
     const newMinute = eventDate.getMinutes();
     const newPeriod = newHour >= 12 ? 'PM' : 'AM';
-    
+
     newHour = newHour % 12;
     newHour = newHour ? newHour : 12;
 
     return `${newHour}:${newMinute.toString().padStart(2, '0')} ${newPeriod}`;
 };
 
-const Section: React.FC<{ title: string; children: React.ReactNode; description?: string }> = ({ title, description, children }) => (
-    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-        <div className="border-b border-gray-100 pb-4 mb-6">
-            <h3 className="text-xl font-bold text-gray-900 font-montserrat tracking-tight flex items-center">
-                <span className="w-2 h-6 bg-[#119600] rounded-full mr-3"></span>
-                {title}
-            </h3>
-            {description && <p className="text-sm text-gray-400 mt-2 ml-5">{description}</p>}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-            {children}
-        </div>
-    </div>
-);
 
-const RadioGroup: React.FC<{ legend: string, children: React.ReactNode}> = ({ legend, children }) => (
-    <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">{legend}</label>
-        <div className="flex flex-col space-y-3 bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-            {children}
-        </div>
-    </div>
-);
-
-
-const RadioOption: React.FC<{label: string; description?: string;} & React.InputHTMLAttributes<HTMLInputElement>> = ({label, description, ...props}) => (
-    <div className="flex items-start">
-        <div className="flex items-center h-5">
-            <input 
-                type="radio" 
-                className="focus:ring-[#119600] h-5 w-5 text-[#119600] border-gray-300 cursor-pointer accent-[#119600]"
-                {...props}
-            />
-        </div>
-        <div className="ml-3 text-sm">
-            <label htmlFor={props.id} className="font-semibold text-gray-800 cursor-pointer">{label}</label>
-            {description && <p className="text-gray-500 text-xs mt-0.5">{description}</p>}
-        </div>
-    </div>
-);
-
-const LanguageSelector: React.FC<{ selected: 'es' | 'en', onChange: (lang: 'es' | 'en') => void }> = ({ selected, onChange }) => {
-    // Modern Pill Toggle Switch
-    return (
-        <div className="flex justify-center w-full">
-            <div className="bg-gray-100 p-1 rounded-full inline-flex relative shadow-inner">
-                {/* The gliding background */}
-                <div 
-                    className={`absolute top-1 bottom-1 w-[50%] bg-white rounded-full shadow-md transition-all duration-300 ease-out ${selected === 'es' ? 'left-1' : 'left-[49%]'}`}
-                ></div>
-                
-                <button 
-                    type="button" 
-                    onClick={() => onChange('es')} 
-                    className={`relative z-10 w-32 py-2 rounded-full text-sm font-bold transition-colors ${selected === 'es' ? 'text-gray-900' : 'text-gray-500'}`}
-                >
-                    <span role="img" aria-label="Spain flag" className="mr-2">🇪🇸</span> Español
-                </button>
-                <button 
-                    type="button" 
-                    onClick={() => onChange('en')} 
-                    className={`relative z-10 w-32 py-2 rounded-full text-sm font-bold transition-colors ${selected === 'en' ? 'text-gray-900' : 'text-gray-500'}`}
-                >
-                    <span role="img" aria-label="USA flag" className="mr-2">🇺🇸</span> English
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const TimeSelector: React.FC<{
-    label: string;
-    value: string; // value from parent, e.g., "10:30 AM"
-    name: keyof ContractData;
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => void;
-    error?: string;
-}> = ({ label, value, name, onChange, onBlur, error }) => {
-    
-    // Internal state for each part of the time
-    const [hour, setHour] = useState('');
-    const [minute, setMinute] = useState('');
-    const [period, setPeriod] = useState('');
-
-    React.useEffect(() => {
-        if (value) {
-            const match = value.match(/(\d+):(\d+)\s(AM|PM)/);
-            if (match) {
-                setHour(match[1]);
-                setMinute(match[2]);
-                setPeriod(match[3]);
-                return;
-            }
-        }
-        setHour('');
-        setMinute('');
-        setPeriod('');
-    }, [value]);
-
-    const handlePartChange = (partName: 'hour' | 'minute' | 'period', newValue: string) => {
-        let newParts = { hour, minute, period };
-        if (partName === 'hour') {
-            setHour(newValue);
-            newParts.hour = newValue;
-        } else if (partName === 'minute') {
-            setMinute(newValue);
-            newParts.minute = newValue;
-        } else {
-            setPeriod(newValue);
-            newParts.period = newValue;
-        }
-
-        if (newParts.hour && newParts.minute && newParts.period) {
-            const newTimeValue = `${newParts.hour}:${newParts.minute} ${newParts.period}`;
-            onChange({ target: { name, value: newTimeValue } } as any);
-        } else {
-            if (value) {
-                onChange({ target: { name, value: '' } } as any);
-            }
-        }
-    };
-    
-    const handleBlurContainer = (e: React.FocusEvent<HTMLDivElement>) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            onBlur({ target: { name, value } } as any);
-        }
-    };
-    
-    const errorClasses = 'bg-red-50 border-red-300 focus:ring-red-200';
-    const baseClasses = 'bg-gray-50 border-transparent hover:bg-gray-100 focus:bg-white focus:ring-[#119600]/20 focus:border-[#119600]';
-    const selectClasses = `block w-full px-3 py-3 rounded-xl shadow-sm focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200 cursor-pointer ${error ? errorClasses : baseClasses}`;
-
-    return (
-        <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">{label}</label>
-            <div className="flex items-center gap-2" onBlur={handleBlurContainer}>
-                <select name={`${name}_hour`} value={hour} onChange={(e) => handlePartChange('hour', e.target.value)} required className={selectClasses}>
-                    <option value="">HH</option>
-                    {[...Array(12)].map((_, i) => {
-                        const hourVal = String(i + 1);
-                        return <option key={hourVal} value={hourVal}>{hourVal.padStart(2, '0')}</option>;
-                    })}
-                </select>
-                <span className="font-black text-gray-300">:</span>
-                <select name={`${name}_minute`} value={minute} onChange={(e) => handlePartChange('minute', e.target.value)} required className={selectClasses}>
-                    <option value="">MM</option>
-                    <option value="00">00</option>
-                    <option value="15">15</option>
-                    <option value="30">30</option>
-                    <option value="45">45</option>
-                </select>
-                <select name={`${name}_period`} value={period} onChange={(e) => handlePartChange('period', e.target.value)} required className={selectClasses}>
-                    <option value="">--</option>
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
-                </select>
-            </div>
-            {error && <p className="mt-1.5 ml-1 text-xs font-medium text-red-500">{error}</p>}
-        </div>
-    );
-};
-
-
-const DateInput: React.FC<{
-    label: string;
-    name: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
-    required?: boolean;
-    error?: string;
-}> = ({ label, name, value, onChange, onBlur, required, error }) => {
-    const errorClasses = 'bg-red-50 border-red-300 focus:ring-red-200';
-    const baseClasses = 'bg-gray-50 border-transparent hover:bg-gray-100 focus:bg-white focus:ring-[#119600]/20 focus:border-[#119600]';
-
-    return (
-        <div>
-            <label htmlFor={name} className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">{label}</label>
-            <input
-                type="date"
-                id={name}
-                name={name}
-                value={value}
-                onChange={onChange}
-                onBlur={onBlur}
-                required={required}
-                className={`block w-full px-4 py-3 rounded-xl shadow-sm focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200 ${error ? errorClasses : baseClasses}`}
-            />
-            {error && <p className="mt-1.5 ml-1 text-xs font-medium text-red-500">{error}</p>}
-        </div>
-    );
-};
-
-
-const AddonService: React.FC<{
-    title: string;
-    cost: number;
-    name: keyof ContractData;
-    value: AddonServiceOption;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    t: any; // Translation object
-}> = ({ title, cost, name, value, onChange, t }) => (
-    <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 hover:border-gray-200 transition-colors">
-        <div className="flex justify-between items-start mb-3">
-            <p className="font-bold text-gray-800">{title}</p>
-            <span className="bg-[#119600]/10 text-[#119600] text-xs font-bold px-2 py-1 rounded-md">
-                +${cost.toFixed(2)}
-            </span>
-        </div>
-        <div className="flex flex-col space-y-2 mt-2">
-            <RadioOption name={name} id={`${name}-contratar`} label={t.addonHire} value="contratar" checked={value === 'contratar'} onChange={onChange} />
-            <RadioOption name={name} id={`${name}-no`} label={t.addonNoHire} value="no_contratar" checked={value === 'no_contratar'} onChange={onChange} />
-            <RadioOption name={name} id={`${name}-pendiente`} label={t.addonPending} value="pendiente" checked={value === 'pendiente'} onChange={onChange} />
-        </div>
-    </div>
-);
-
-
-const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInputChange, onLanguageChange, onClearForm, isDownloading, setIsDownloading, generatedLinks, setGeneratedLinks, apiError, setApiError }) => {
+const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInputChange, onLanguageChange, onClearForm, isDownloading, setIsDownloading, generatedLinks, setGeneratedLinks, apiError, setApiError, onContractGenerated }) => {
     
     const [errors, setErrors] = useState<Partial<Record<keyof ContractData | string, string>>>({});
 
@@ -284,11 +89,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         // Helper for music/booth date
         const getCompositeDate = () => {
             if (data.anoEvento && data.mesEvento && data.diaEvento) {
-                const monthMap: { [key: string]: number } = {
-                    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-                    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
-                };
-                const monthNumber = monthMap[data.mesEvento.toLowerCase()];
+                const monthNumber = MONTH_MAP[data.mesEvento.toLowerCase()];
                 if (monthNumber) {
                     return `${data.anoEvento}-${String(monthNumber).padStart(2, '0')}-${String(data.diaEvento).padStart(2, '0')}`;
                 }
@@ -337,6 +138,21 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         setGeneratedLinks(links);
         setApiError(null);
         setErrors({});
+
+        // Save to contract history
+        if (onContractGenerated) {
+            const eventDate = data.diaEvento && data.mesEvento && data.anoEvento
+                ? `${data.diaEvento} de ${data.mesEvento} del ${data.anoEvento}`
+                : 'Fecha no especificada';
+
+            onContractGenerated({
+                contractNumber: data.numeroContrato,
+                contractType,
+                clientName: data.nombreCliente || 'Cliente sin nombre',
+                eventDate,
+                links,
+            });
+        }
     };
 
     const handleClear = () => {
@@ -397,6 +213,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
 
     const handleGenerateContract = async () => {
         setApiError(null);
+
         if (!validateForm()) {
             setApiError('⚠️ Por favor, corrige los errores en el formulario antes de continuar.');
             return;
@@ -404,7 +221,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         setIsDownloading(true);
 
         try {
-            const ano_contrato_current = '2025';
+            const ano_contrato_current = CONFIG.CURRENT_YEAR;
             let finalPayload;
 
             if (contractType === 'music') {
@@ -556,14 +373,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         }
     };
     
-    const monthOptions = [
-        { value: "enero", label: "Enero" }, { value: "febrero", label: "Febrero" },
-        { value: "marzo", label: "Marzo" }, { value: "abril", label: "Abril" },
-        { value: "mayo", label: "Mayo" }, { value: "junio", label: "Junio" },
-        { value: "julio", label: "Julio" }, { value: "agosto", label: "Agosto" },
-        { value: "septiembre", label: "Septiembre" }, { value: "octubre", label: "Octubre" },
-        { value: "noviembre", label: "Noviembre" }, { value: "diciembre", label: "Diciembre" },
-    ];
 
     return (
         <div className="space-y-8">
@@ -585,7 +394,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                         placeholder="001"
                         maxLength={3}
                         required
-                        addonText="2025-"
+                        addonText={`${CONFIG.CURRENT_YEAR}-`}
                         error={errors.numeroContrato}
                     />
                     <Input label="Email" name="emailCliente" value={data.emailCliente} onChange={handleChange} onBlur={handleBlur} type="email" placeholder="ejemplo@correo.com" required error={errors.emailCliente}/>
@@ -603,10 +412,10 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                         {errors.servicioPhotoBooth && <p className="md:col-span-2 text-xs text-red-600 -mt-3">{errors.servicioPhotoBooth}</p>}
                     </Section>
                     <Section title={t.addonServicesTitle} description={t.addonServicesDesc}>
-                       <AddonService title={t.addonSpeaker} cost={25} name="bocinaOpcion" value={data.bocinaOpcion!} onChange={handleChange} t={t} />
-                       <AddonService title={t.addonEarlySetup} cost={50} name="earlySetupOpcion" value={data.earlySetupOpcion!} onChange={handleChange} t={t} />
+                       <AddonService title={t.addonSpeaker} cost={PRICING.ADDON_SPEAKER} name="bocinaOpcion" value={data.bocinaOpcion!} onChange={handleChange} t={t} />
+                       <AddonService title={t.addonEarlySetup} cost={PRICING.ADDON_EARLY_SETUP} name="earlySetupOpcion" value={data.earlySetupOpcion!} onChange={handleChange} t={t} />
                        <div className="md:col-span-2">
-                         <AddonService title={t.addonBranding} cost={75} name="brandingOpcion" value={data.brandingOpcion!} onChange={handleChange} t={t} />
+                         <AddonService title={t.addonBranding} cost={PRICING.ADDON_BRANDING} name="brandingOpcion" value={data.brandingOpcion!} onChange={handleChange} t={t} />
                        </div>
                     </Section>
                 </>
@@ -622,7 +431,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                            <label htmlFor="mesEvento" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">{t.month}</label>
                            <select id="mesEvento" name="mesEvento" value={data.mesEvento} onChange={handleChange} onBlur={handleBlur} required className="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl shadow-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#119600]/20 focus:border-[#119600] sm:text-sm cursor-pointer transition-all">
                                <option value="">MM</option>
-                               {monthOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                               {MONTH_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                            </select>
                       </div>
                       <Input label={t.year} name="anoEvento" value={data.anoEvento} onChange={handleChange} onBlur={handleBlur} type="text" inputMode="numeric" placeholder="AAAA" maxLength={4} required />
@@ -694,11 +503,11 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                       <p className="text-xs text-gray-400 mt-2 ml-1">{t.remainingBalanceDesc}</p>
                   </div>
                   <div className="md:col-span-2">
-                      <Checkbox 
-                          label={<><strong>{t.depositCheckboxLabel}</strong><span className="font-normal text-gray-500"> ($125.00 USD)</span></>}
-                          name="aplicaDeposito" 
-                          checked={data.aplicaDeposito} 
-                          onChange={handleChange} 
+                      <Checkbox
+                          label={<><strong>{t.depositCheckboxLabel}</strong><span className="font-normal text-gray-500"> (${PRICING.DEPOSIT_MUSIC_BOOTH.toFixed(2)} USD)</span></>}
+                          name="aplicaDeposito"
+                          checked={data.aplicaDeposito}
+                          onChange={handleChange}
                       />
                   </div>
                   <div className="md:col-span-2">
@@ -718,7 +527,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
             {contractType === 'dj' && (
                 <>
                     <Section title={t_dj.clientInfoTitle}>
-                         <Input label={t_dj.contractNumber} name="numeroContrato" value={data.numeroContrato} onChange={handleChange} onBlur={handleBlur} placeholder="001" maxLength={3} required addonText="2025-" error={errors.numeroContrato} />
+                         <Input label={t_dj.contractNumber} name="numeroContrato" value={data.numeroContrato} onChange={handleChange} onBlur={handleBlur} placeholder="001" maxLength={3} required addonText={`${CONFIG.CURRENT_YEAR}-`} error={errors.numeroContrato} />
                          <Input label={t_dj.clientName} name="nombreCliente" value={data.nombreCliente} onChange={handleChange} onBlur={handleBlur} required error={errors.nombreCliente} />
                          <Input label={t_dj.phone} name="telefonoCliente" value={data.telefonoCliente} onChange={handleChange} onBlur={handleBlur} type="tel" required error={errors.telefonoCliente} />
                          <Input label="Email" name="emailCliente" value={data.emailCliente} onChange={handleChange} onBlur={handleBlur} type="email" placeholder="ejemplo@correo.com" error={errors.emailCliente} />
