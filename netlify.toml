@@ -2,14 +2,17 @@
 # Este archivo le dice a Netlify cómo construir y servir tu aplicación
 
 [build]
-  # La carpeta que contiene tu aplicación frontend
-  publish = "contratia 2"
+  # Carpeta base donde está el código fuente
+  base = "app"
 
-  # Si necesitas ejecutar un comando de build (descomenta si usas Vite)
-  # command = "cd 'contratia 2' && npm install && npm run build"
+  # Comando para construir la aplicación con Vite
+  command = "npm install && npm run build"
+
+  # Carpeta donde Vite genera los archivos compilados (relativa a base)
+  publish = "dist"
 
 [functions]
-  # Carpeta donde están las funciones serverless
+  # Carpeta donde están las funciones serverless (relativa a base)
   directory = "netlify/functions"
 
 # ============================================
