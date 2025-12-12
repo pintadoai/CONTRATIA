@@ -1,8 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ContractData, GeneratedLinks, ContractType } from './types';
 import ContractForm from './components/ContractForm';
+import ContractHistory from './components/ContractHistory';
 import useAutoSave from './hooks/useAutoSave';
+import useContractHistory from './hooks/useContractHistory';
 import { Logo } from './components/icons';
+import { CONFIG, PRICING } from './utils/constants';
 
 const initialMusicData: ContractData = {
     numeroContrato: '001',
@@ -11,7 +14,7 @@ const initialMusicData: ContractData = {
     telefonoCliente: '',
     diaEvento: '',
     mesEvento: '',
-    anoEvento: '2025',
+    anoEvento: CONFIG.CURRENT_YEAR,
     descripcionServicio: '',
     horaServicio: '',
     costoTotal: '',
@@ -33,7 +36,7 @@ const initialBoothData: ContractData = {
     telefonoCliente: '',
     diaEvento: '',
     mesEvento: '',
-    anoEvento: '2025',
+    anoEvento: CONFIG.CURRENT_YEAR,
     descripcionServicio: '',
     horaServicio: '',
     costoTotal: '0.00',
@@ -63,7 +66,7 @@ const initialDjData: ContractData = {
     telefonoCliente: '',
     diaEvento: '',
     mesEvento: '',
-    anoEvento: '2025',
+    anoEvento: CONFIG.CURRENT_YEAR,
     descripcionServicio: '', // Not used for DJ, but in type
     horaServicio: '', // Represents hora_inicio
     costoTotal: '0.00', // Represents honorarios_total
@@ -152,7 +155,8 @@ const App: React.FC = () => {
     const [generatedLinks, setGeneratedLinks] = useState<GeneratedLinks | null>(null);
     const [apiError, setApiError] = useState<string | null>(null);
 
-    const { clearDraft } = useAutoSave(contractData, setContractData, `dshow-contract-draft-${contractType}`);
+    const { clearDraft, saveStatus } = useAutoSave(contractData, setContractData, `dshow-contract-draft-${contractType}`);
+    const { history, addToHistory, removeFromHistory, clearHistory } = useContractHistory();
 
      // Auto-generate Service Description for Booths
     useEffect(() => {
@@ -198,7 +202,7 @@ const App: React.FC = () => {
         let totalForBalanceCalc = parseFloat(contractData.costoTotal) || 0;
 
         if (contractType === 'music' && contractData.soundOption === 'upgrade') {
-            totalForBalanceCalc += 150;
+            totalForBalanceCalc += PRICING.SOUND_UPGRADE;
         }
         
         if (totalForBalanceCalc <= 0) {
@@ -208,7 +212,7 @@ const App: React.FC = () => {
             return;
         }
 
-        const deposit = contractData.aplicaDeposito ? 125 : 0;
+        const deposit = contractData.aplicaDeposito ? PRICING.DEPOSIT_MUSIC_BOOTH : 0;
         const balance = totalForBalanceCalc - deposit;
         
         const newBalance = Math.max(0, balance).toFixed(2);
@@ -340,7 +344,7 @@ const App: React.FC = () => {
                 } else {
                     setContractData(prev => ({
                         ...prev,
-                        [name]: '', diaEvento: '', mesEvento: '', anoEvento: '2025'
+                        [name]: '', diaEvento: '', mesEvento: '', anoEvento: CONFIG.CURRENT_YEAR
                     }));
                 }
             } else {
@@ -381,6 +385,34 @@ const App: React.FC = () => {
                             <Logo className="h-8 w-auto" />
                         </div>
                         <div className="flex items-center space-x-4">
+                            {/* Auto-save status indicator */}
+                            <div className="flex items-center gap-2 text-xs">
+                                {saveStatus === 'saving' && (
+                                    <span className="flex items-center gap-1.5 text-gray-400 animate-pulse">
+                                        <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                        </svg>
+                                        Guardando...
+                                    </span>
+                                )}
+                                {saveStatus === 'saved' && (
+                                    <span className="flex items-center gap-1 text-green-600 font-medium">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Guardado
+                                    </span>
+                                )}
+                                {saveStatus === 'error' && (
+                                    <span className="flex items-center gap-1 text-red-500 font-medium">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Error
+                                    </span>
+                                )}
+                            </div>
                             <span className="text-xl font-black text-gray-900 font-montserrat tracking-tight">
                                 CONTRATIA
                             </span>
@@ -401,7 +433,16 @@ const App: React.FC = () => {
                 </div>
 
                  <ContractTypeSelector selectedType={contractType} onChange={handleContractTypeChange} />
-                
+
+                {/* Contract History Panel */}
+                <div className="mb-6">
+                    <ContractHistory
+                        history={history}
+                        onRemove={removeFromHistory}
+                        onClear={clearHistory}
+                    />
+                </div>
+
                 <ContractForm
                     contractType={contractType}
                     data={contractData}
@@ -414,6 +455,7 @@ const App: React.FC = () => {
                     setGeneratedLinks={setGeneratedLinks}
                     apiError={apiError}
                     setApiError={setApiError}
+                    onContractGenerated={addToHistory}
                 />
             </main>
             
@@ -426,7 +468,7 @@ const App: React.FC = () => {
                 </p>
                 <div className="pt-2">
                     <span className="inline-block bg-gray-200 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-mono">
-                        v2.0
+                        v2.1.0
                     </span>
                 </div>
             </footer>
