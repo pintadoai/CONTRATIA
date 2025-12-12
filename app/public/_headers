@@ -1,0 +1,27 @@
+# _headers - Headers de seguridad para Netlify
+# Este archivo es un respaldo de los headers definidos en netlify.toml
+
+# Headers para todas las páginas
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+
+# Headers para archivos estáticos (cache largo)
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# Headers para imágenes
+/*.png
+  Cache-Control: public, max-age=604800
+
+/*.jpg
+  Cache-Control: public, max-age=604800
+
+/*.svg
+  Cache-Control: public, max-age=604800

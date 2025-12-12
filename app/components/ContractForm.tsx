@@ -7,7 +7,7 @@ import Button from './ui/Button';
 import { TrashIcon } from './icons';
 import { MakeIntegrationButton } from './MakeIntegration';
 import { translations, isValidPhone, normalizePhone, isValidEmail, isValidDate, isValidTimeSlot } from '../utils/translations';
-import { CONFIG, PRICING, WEBHOOKS, MONTH_OPTIONS, MONTH_MAP } from '../utils/constants';
+import { CONFIG, PRICING, MONTH_OPTIONS, MONTH_MAP } from '../utils/constants';
 
 // Modular form components
 import {
@@ -43,10 +43,9 @@ interface ContractFormProps {
     onContractGenerated?: (item: ContractHistoryInput) => void;
 }
 
-// Webhook URLs loaded from environment variables via constants
-const MAKE_WEBHOOK_URL_MUSIC = WEBHOOKS.MUSIC;
-const MAKE_WEBHOOK_URL_BOOTH = WEBHOOKS.BOOTH;
-const MAKE_WEBHOOK_URL_DJ = WEBHOOKS.DJ;
+// URLs de webhook movidas al servidor (Netlify Functions) por seguridad
+// Ver: netlify/functions/generate-contract.js
+const SECURE_API_ENDPOINT = '/api/generate-contract';
 
 
 // Helper function to calculate setup time (2 hours before service)
@@ -215,19 +214,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
     const handleGenerateContract = async () => {
         setApiError(null);
 
-        // Validate webhook URL is configured
-        const webhookUrls: Record<ContractType, string> = {
-            music: MAKE_WEBHOOK_URL_MUSIC,
-            booth: MAKE_WEBHOOK_URL_BOOTH,
-            dj: MAKE_WEBHOOK_URL_DJ,
-        };
-        const webhookUrl = webhookUrls[contractType];
-
-        if (!webhookUrl) {
-            setApiError(`⚠️ Error de configuracion: El webhook para "${contractType}" no esta configurado.\n\nPor favor verifica que el archivo .env contiene la variable VITE_WEBHOOK_${contractType.toUpperCase()} con la URL correcta.`);
-            return;
-        }
-
         if (!validateForm()) {
             setApiError('⚠️ Por favor, corrige los errores en el formulario antes de continuar.');
             return;
@@ -347,10 +333,14 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                 };
             }
 
-            const response = await fetch(webhookUrl, {
+            // Llamar al endpoint seguro (Netlify Function) en lugar de directamente a Make.com
+            const response = await fetch(SECURE_API_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(finalPayload),
+                body: JSON.stringify({
+                    contractType: contractType,  // 'music', 'booth', o 'dj'
+                    payload: finalPayload        // Los datos del contrato
+                }),
             });
             
             const responseText = await response.text();
@@ -537,7 +527,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
             {contractType === 'dj' && (
                 <>
                     <Section title={t_dj.clientInfoTitle}>
-                         <Input label={t_dj.contractNumber} name="numeroContrato" value={data.numeroContrato} onChange={handleChange} onBlur={handleBlur} placeholder="001" maxLength={3} required addonText="2025-" error={errors.numeroContrato} />
+                         <Input label={t_dj.contractNumber} name="numeroContrato" value={data.numeroContrato} onChange={handleChange} onBlur={handleBlur} placeholder="001" maxLength={3} required addonText={`${CONFIG.CURRENT_YEAR}-`} error={errors.numeroContrato} />
                          <Input label={t_dj.clientName} name="nombreCliente" value={data.nombreCliente} onChange={handleChange} onBlur={handleBlur} required error={errors.nombreCliente} />
                          <Input label={t_dj.phone} name="telefonoCliente" value={data.telefonoCliente} onChange={handleChange} onBlur={handleBlur} type="tel" required error={errors.telefonoCliente} />
                          <Input label="Email" name="emailCliente" value={data.emailCliente} onChange={handleChange} onBlur={handleBlur} type="email" placeholder="ejemplo@correo.com" error={errors.emailCliente} />
