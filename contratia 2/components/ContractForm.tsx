@@ -7,7 +7,7 @@ import Button from './ui/Button';
 import { TrashIcon } from './icons';
 import { MakeIntegrationButton } from './MakeIntegration';
 import { translations, isValidPhone, normalizePhone, isValidEmail, isValidDate, isValidTimeSlot } from '../utils/translations';
-import { CONFIG, PRICING, WEBHOOKS } from '../utils/constants';
+import { CONFIG, PRICING, WEBHOOKS, MONTH_OPTIONS, MONTH_MAP } from '../utils/constants';
 
 // Modular form components
 import {
@@ -90,11 +90,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         // Helper for music/booth date
         const getCompositeDate = () => {
             if (data.anoEvento && data.mesEvento && data.diaEvento) {
-                const monthMap: { [key: string]: number } = {
-                    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-                    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
-                };
-                const monthNumber = monthMap[data.mesEvento.toLowerCase()];
+                const monthNumber = MONTH_MAP[data.mesEvento.toLowerCase()];
                 if (monthNumber) {
                     return `${data.anoEvento}-${String(monthNumber).padStart(2, '0')}-${String(data.diaEvento).padStart(2, '0')}`;
                 }
@@ -218,6 +214,20 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
 
     const handleGenerateContract = async () => {
         setApiError(null);
+
+        // Validate webhook URL is configured
+        const webhookUrls: Record<ContractType, string> = {
+            music: MAKE_WEBHOOK_URL_MUSIC,
+            booth: MAKE_WEBHOOK_URL_BOOTH,
+            dj: MAKE_WEBHOOK_URL_DJ,
+        };
+        const webhookUrl = webhookUrls[contractType];
+
+        if (!webhookUrl) {
+            setApiError(`⚠️ Error de configuracion: El webhook para "${contractType}" no esta configurado.\n\nPor favor verifica que el archivo .env contiene la variable VITE_WEBHOOK_${contractType.toUpperCase()} con la URL correcta.`);
+            return;
+        }
+
         if (!validateForm()) {
             setApiError('⚠️ Por favor, corrige los errores en el formulario antes de continuar.');
             return;
@@ -227,10 +237,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         try {
             const ano_contrato_current = CONFIG.CURRENT_YEAR;
             let finalPayload;
-            let webhookUrl;
 
             if (contractType === 'music') {
-                webhookUrl = MAKE_WEBHOOK_URL_MUSIC;
                 finalPayload = {
                     contract_type: contractType,
                     nombre_cliente: data.nombreCliente,
@@ -255,7 +263,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                     cantidad_estacionamientos: data.parkingSpaces,
                 };
             } else if (contractType === 'booth') {
-                webhookUrl = MAKE_WEBHOOK_URL_BOOTH;
                 finalPayload = {
                     ano_contrato: ano_contrato_current,
                     numero_contrato: data.numeroContrato,
@@ -289,7 +296,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                     idioma: data.language,
                 };
             } else { // DJ contract
-                webhookUrl = MAKE_WEBHOOK_URL_DJ;
                 const today = new Date();
                 const formattedDate = today.toLocaleDateString(data.language === 'es' ? 'es-PR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
                 const eventDate = translations[data.language].doc.formatDate(data.diaEvento, data.mesEvento, data.anoEvento);
@@ -377,14 +383,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
         }
     };
     
-    const monthOptions = [
-        { value: "enero", label: "Enero" }, { value: "febrero", label: "Febrero" },
-        { value: "marzo", label: "Marzo" }, { value: "abril", label: "Abril" },
-        { value: "mayo", label: "Mayo" }, { value: "junio", label: "Junio" },
-        { value: "julio", label: "Julio" }, { value: "agosto", label: "Agosto" },
-        { value: "septiembre", label: "Septiembre" }, { value: "octubre", label: "Octubre" },
-        { value: "noviembre", label: "Noviembre" }, { value: "diciembre", label: "Diciembre" },
-    ];
 
     return (
         <div className="space-y-8">
@@ -406,7 +404,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                         placeholder="001"
                         maxLength={3}
                         required
-                        addonText="2025-"
+                        addonText={`${CONFIG.CURRENT_YEAR}-`}
                         error={errors.numeroContrato}
                     />
                     <Input label="Email" name="emailCliente" value={data.emailCliente} onChange={handleChange} onBlur={handleBlur} type="email" placeholder="ejemplo@correo.com" required error={errors.emailCliente}/>
@@ -443,7 +441,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ contractType, data, onInput
                            <label htmlFor="mesEvento" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">{t.month}</label>
                            <select id="mesEvento" name="mesEvento" value={data.mesEvento} onChange={handleChange} onBlur={handleBlur} required className="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl shadow-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#119600]/20 focus:border-[#119600] sm:text-sm cursor-pointer transition-all">
                                <option value="">MM</option>
-                               {monthOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                               {MONTH_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                            </select>
                       </div>
                       <Input label={t.year} name="anoEvento" value={data.anoEvento} onChange={handleChange} onBlur={handleBlur} type="text" inputMode="numeric" placeholder="AAAA" maxLength={4} required />
