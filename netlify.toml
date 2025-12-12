@@ -25,6 +25,12 @@
   to = "/.netlify/functions/generate-contract"
   status = 200
 
+# Redirigir /api/ai-suggest a la función de Gemini AI
+[[redirects]]
+  from = "/api/ai-suggest"
+  to = "/.netlify/functions/ai-suggest"
+  status = 200
+
 # Para Single Page Apps (React Router, etc.)
 # Redirige todas las rutas no encontradas a index.html
 [[redirects]]
